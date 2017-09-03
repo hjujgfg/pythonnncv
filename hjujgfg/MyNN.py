@@ -1,10 +1,17 @@
 import numpy as np
 import random
+import math
+import matplotlib.pyplot as plt
+
 
 def activate(output):
     return 1.0 / (1.0 + np.exp(-output))
+
 def output_derivative(value):
     return value * (1.0 - value)
+
+vectorizedDerivative = np.vectorize(output_derivative)
+vectorizedActivation = np.vectorize(activate)
 
 def create_nn(dimensions):
     nn = {}
@@ -37,11 +44,17 @@ def activate_layer(input, weights):
 def scale_vector(vector):
     min = np.amin(vector)
     result = {}
-    offeseted = vector - min
-    max = np.amax(offeseted)
+    if len(vector) != 1:
+        offseted = vector - min
+    else:
+        offseted = vector
+    max = np.amax(offseted)
     result['input_min'] = min
     result['input_max'] = max
-    scaled = offeseted * (1 / max)
+    if max != 0:
+        scaled = offseted * (1 / max)
+    else:
+        scaled = offseted
     result['array'] = scaled
     return result
 
@@ -51,13 +64,10 @@ def unscale_vector(vec, net):
     return unshifted
 
 def forward_propagate(input, net):
-    #print ("Attempting to forward propagate on inputs: ", input)
     temp = scale_vector(np.array([input]))
     net['input_min'] = temp['input_min']
     net['input_max'] = temp['input_max']
     input = np.append(temp['array'].T, [[1]], axis=0)
-    #print ("Constructed input: ", input)
-    #print ('prepared the following array: \n', input)
     vectorizedActivation = np.vectorize(activate)
     layerNumber = 0
     net['input'] = input
@@ -65,11 +75,7 @@ def forward_propagate(input, net):
         outputs = vectorizedActivation(activate_layer(input, l['weights']))
         l['outputs'] = outputs
         input = np.append(l['outputs'], [[1]], axis=0)
-        #print ("calculated outputs for layer #", layerNumber)
-        #print ("\n", l['outputs'])
-        #print ("input vector for next layer: \n", input)
         layerNumber += 1
-    ##print_net(net)
 
 def back_propagate(expected, net):
     counter = 0
@@ -79,45 +85,72 @@ def back_propagate(expected, net):
         toDerivate = 0;
         if counter == 0:
             test = np.array([expected]).reshape(len(expected), 1)
-            test = (test - net['input_min']) * (1 / net['input_max'])
-            #print("\ntest array: ", test)
-            #print("\nOutputs: ", l['outputs'])
-            errors = test - l['outputs']
-            errors = np.append(errors, [[1]], axis=0)
-            #toDerivate = l['outputs']
+            if (net['input_max'] != 0) :
+                test = (test - net['input_min']) * (1 / net['input_max'])
+            else:
+                test = (test - net['input_min'])
+            errors = l['outputs'] - test
+            errors = np.append(errors, [[0]], axis=0)
         else:
             errors = next['weights'].T * next['deltas'][:-1]
         toDerivate = np.append(l['outputs'], [[1]], axis=0) #we add bias unit, which outputs always 1
-        #print ("calculated errors for layer #", len(net['layers']) - counter)
-        #print ("\n", errors)
-        vectorizedDerivative = np.vectorize(output_derivative)
         derivatives = vectorizedDerivative(toDerivate)
-        #print("\nderivatives: \n")
-        #print(derivatives)
         l['deltas'] = np.multiply(errors, derivatives)
-        #print ('\ncalculated deltas for layer #', len(net['layers']) - counter)
-        #print ('\n', l['deltas'])
         counter += 1
         next = l
 
 def get_outputs(net):
     return unscale_vector(net['layers'][-1]['outputs'], net)
 
-def train_encoder(net, alpha = 0.5, lamb = 0.02, epochs=500, train_number = 500):
+def train_encoder(net, alpha = 0.5, lamb = 0.05, epochs=500, train_number = 1000):
+    errors = []
     for epoch in range(0, epochs):
         sum_error = 0
-        for j in range(train_number):
-            inp = create_random_vector(net['input_size'])
-            out = inp
+        actually_trained = 0
+        for j in range(1, train_number):
+            #inp = create_random_vector(net['input_size'])
+            #out = inp
+
+            inp = [j]
+            out = calc_sin(j)
+
+            #function_to_train.append(out)
+            #print("Input: ", inp)
+            #print("Output: ", out)
             forward_propagate(inp, net)
             back_propagate(out, net)
             compute_delta_weights(net)
-            sum_error += np.sum( (get_outputs(net) - out) ** 2 )
-        update_weights(net, alpha, lamb, train_number)
-        print('>epoch=%d, lrate=%.3f, error=%.3f' % (epoch, alpha, sum_error))
-        if epoch % 50 == 0 and alpha >= 0.15:
-            alpha -= 0.05
+            sum_error += np.sum( (get_outputs(net) - np.array(out)) ** 2 )
+            actually_trained += 1
+            if sum_error > 10000000:
+                break
+        update_weights(net, alpha, lamb, actually_trained)
+        print('>epoch=%d, lrate=%.3f, error=%.8f, acutally trained:%.3f' % (epoch, alpha, sum_error, actually_trained))
+        errors.append(sum_error)
+        if epoch % 100 == 0 and alpha >= 0.15:
+            pass
+            #alpha -= 0.05
+        if len(errors) > 1 and errors[epoch] == errors[epoch - 1]:
+            break
+    return errors
 
+def test_nn(net, number):
+    outputs = []
+    for i in range(0, number):
+        inp = [i]
+        forward_propagate(inp, net)
+        outputs.append(get_outputs(net)[0,0])
+    return outputs
+
+
+def create_input(prev):
+    return np.array([prev + 1])
+
+def calc_sin(input):
+    return [math.sin(input * math.pi / 180)]
+
+def calc_log(input):
+    return [math.log10(input + 10)]
 
 def compute_delta_weights(net):
     prev_out = net['input']
@@ -127,7 +160,7 @@ def compute_delta_weights(net):
 
 def update_weights(net, alpha, lambd, train_number):
     for l in net['layers']:
-        l['weights'] = l['weights'] - alpha * (1/train_number * l['delta_weights'] + lambd * l['weights'])
+        l['weights'] = l['weights'] - alpha * ((1/train_number) * l['delta_weights'] + lambd * l['weights'])
         l['delta_weights'] = l['delta_weights'] * 0
 
 def create_random_vector(size):
@@ -148,18 +181,38 @@ def print_output(net):
     print (net['layers'][-1]['outputs'])
 
 def print_info(net):
-    print("\nNumber of levels: ", len(net['layers']))
-    print("\n-----------------\n")
+    print("Number of levels: ", len(net['layers']))
+    print("-----------------\n")
     counter = 0;
+    if 'input' in net:
+        print ("input was: ")
+        print (net['input'])
+    else:
+        print ("No inputs yet")
     for i in net['layers']:
         print("Layer #", counter)
-        print("\nWeights size: ", i['weights'].shape)
+        print("Weights size: ", i['weights'].shape)
+        print('Weights: ')
+        print(i['weights'])
         if 'outputs' in i:
-            print("\noutputs: ", i['outputs'].shape)
+            print("outputs shape: ", i['outputs'].shape)
+            print("outputs: ")
+            print(i['outputs'])
         else:
-            print("\nNo outputs for layer yet")
+            print("No outputs for layer yet")
         if 'deltas' in i:
-            print("\ndeltas: ", i['deltas'].shape)
+            print("deltas shape: ", i['deltas'].shape)
+            print("Deltas: ")
+            print(i['deltas'])
         else:
-            print("\nNo deltas for layer yet")
+            print("No deltas for layer yet")
+        if 'delta_weights' in i:
+            print("Delta weights: ")
+            print(i['delta_weights'])
+        else:
+            print("no delta weights")
         counter += 1
+
+def plot(arr):
+    plt.plot(arr)
+    plt.show()
