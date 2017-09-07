@@ -33,6 +33,8 @@ class Layer:
         self.outputs = vectorizedActivation(self.zeds)
 
     def calc_derivatives(self, prev_outputs):
+        #print "Self deltas: \n" + str(self.deltas)
+        #print "\nPrev out: \n" + str(prev_outputs)
         self.derivative_w = self.deltas * prev_outputs.T
         self.derivative_b = self.deltas
 
@@ -41,7 +43,9 @@ class Layer:
         self.delta_b = self.delta_b + self.derivative_b
 
     def update_weights(self, alpha, lamb, train_size):
+        #print "weights before update: " + str(self.weights)
         self.weights = self.weights - alpha * ((1/train_size) * self.delta_W - lamb * self.weights)
+        #print "weights after update: " + str(self.weights)
         self.biases = self.biases - alpha * ((1/train_size) * self.delta_b)
         self.delta_W = self.delta_W * 0
         self.delta_b = self.delta_b * 0
@@ -90,8 +94,9 @@ class NN:
         res = np.array(expected).reshape(len(expected), 1)
         i = 0
         for l in reversed(self.layers):
+            #print "Layer #" + str(len(self.layers) - i)
             if i == 0:
-                l.deltas = -np.multiply((res - l.outputs), vectorizedDerivative(l.outputs))
+                l.deltas = np.multiply((res - l.outputs), vectorizedDerivative(l.outputs))
             else:
                 l.deltas = np.multiply((prev.weights.T * prev.deltas), vectorizedDerivative(l.outputs))
             prev = l
@@ -100,6 +105,7 @@ class NN:
         for l in self.layers:
             l.calc_derivatives(prev)
             l.update_delta()
+            prev = l.outputs
 
     def out(self):
         return self.layers[-1].outputs
@@ -118,15 +124,19 @@ class NN:
         res = res + "\n END OF NN"
         return res
 
-def train(net, alpha = 0.5, lamb = 0.05, epochs=500, train_number = 1000):
+def train(net, alpha = 0.5, lamb = 0.05, epochs=300, train_number = 360):
     errors = []
     func = []
+    train_set = generate_set(train_number, calc_sin)
+    normalization_result = mean_normalize(train_set['inputs'])
+    inputs = normalization_result['normalized']
+    outputs = train_set['outputs']
     for epoch in range(epochs):
         sum_error = 0
         for j in range(train_number):
-
-            inp = [j]
-            out = calc_line(j)
+            #rand = random.random() * 360
+            inp = [inputs[j]]
+            out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
             func.append(out)
 
             net.run(inp)
@@ -140,6 +150,33 @@ def train(net, alpha = 0.5, lamb = 0.05, epochs=500, train_number = 1000):
     plot(errors)
     plot(func)
     return errors
+
+def mean_normalize(array):
+    mean = 0
+    max = -999999
+    min = 999999
+    for i in array:
+        mean += i
+        if max < i:
+            max = i
+        if min > i:
+            min = i
+    denominator = max - min
+    mean = mean / len(array)
+    print "Mean:%.3f, min:%.3f, max:%.3f" % (mean, min, max)
+    new_array = (np.array(array) - mean) * (1/float(denominator))
+    return {'normalized':new_array.tolist(), 'mean': mean, 'denominator':denominator}
+
+
+def generate_set(size, func):
+    inputs = []
+    outputs = []
+    for i in range(0, size):
+        input = random.random() * 360
+        output = func(input)
+        inputs.append(input)
+        outputs.append(output)
+    return {'inputs': inputs, 'outputs': outputs}
 
 def test(net, number = 1000):
     results = []
