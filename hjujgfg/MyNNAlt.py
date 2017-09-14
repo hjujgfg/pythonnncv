@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 def activate(output):
     return 1.0 / (1.0 + np.exp(-output))
 
+def linearActivation(output):
+    return np.sum(output)
+def linearActivationDerivative(ouput):
+    return
+
 def output_derivative(value):
     return value * (1.0 - value)
 
@@ -16,8 +21,8 @@ vectorizedActivation = np.vectorize(activate)
 class Layer:
     def __init__(self, neuron_number, prev_neuron_number):
         self.weights = np.matrix(np.ones([neuron_number, prev_neuron_number]))
-        self.weights = np.multiply(self.weights, np.random.random_sample([neuron_number, prev_neuron_number]))
-        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1]))
+        self.weights = np.multiply(self.weights, np.random.random_sample([neuron_number, prev_neuron_number])) * 0.001
+        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1])) * 0.001
         self.outputs = None
         self.deltas = None
         self.derivative_w = None
@@ -28,9 +33,14 @@ class Layer:
     def applyWeights(self, input):
         self.zeds = self.weights * input + self.biases
 
-    def activate(self, input):
+    def activate(self, input, isLast):
         self.applyWeights(input)
         self.outputs = vectorizedActivation(self.zeds)
+        #attempt to use linear function for last layer
+        #if not isLast:
+        #    self.outputs = vectorizedActivation(self.zeds)
+        #else:
+        #    self.outputs = linearActivation(self.zeds)
 
     def calc_derivatives(self, prev_outputs):
         #print "Self deltas: \n" + str(self.deltas)
@@ -83,7 +93,7 @@ class NN:
         prev = np.array(input).reshape(len(input), 1)
         self.input = prev
         for l in self.layers:
-            l.activate(prev)
+            l.activate(prev, l == self.layers[-1])
             prev = l.outputs
 
     def run_res(self, input):
@@ -96,7 +106,7 @@ class NN:
         for l in reversed(self.layers):
             #print "Layer #" + str(len(self.layers) - i)
             if i == 0:
-                l.deltas = np.multiply((res - l.outputs), vectorizedDerivative(l.outputs))
+                l.deltas = np.multiply((l.outputs - res), vectorizedDerivative(l.outputs))
             else:
                 l.deltas = np.multiply((prev.weights.T * prev.deltas), vectorizedDerivative(l.outputs))
             prev = l
@@ -124,19 +134,27 @@ class NN:
         res = res + "\n END OF NN"
         return res
 
-def train(net, alpha = 0.5, lamb = 0.05, epochs=300, train_number = 360):
+def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360):
     errors = []
     func = []
     train_set = generate_set(train_number, calc_sin)
-    normalization_result = mean_normalize(train_set['inputs'])
-    inputs = normalization_result['normalized']
+    #normalization_result = mean_normalize(train_set['inputs'])
+    #inputs = normalization_result['normalized']
+    #outputs = train_set['outputs']
+    inputs = train_set['inputs']
     outputs = train_set['outputs']
     for epoch in range(epochs):
         sum_error = 0
+        func = []
         for j in range(train_number):
             #rand = random.random() * 360
-            inp = [inputs[j]]
-            out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
+            #val = inputs[j]
+            #inp = [val]
+            #out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
+
+            inp = [inputs[j] / 360]
+            out = [scale_value(outputs[j], -1, 1, 0, 1)]
+
             func.append(out)
 
             net.run(inp)
@@ -151,7 +169,11 @@ def train(net, alpha = 0.5, lamb = 0.05, epochs=300, train_number = 360):
     plot(func)
     return errors
 
+def scale_value(value, old_min, old_max, new_min, new_max):
+    return ((value - old_min) / (old_max - old_min)) * ((new_max - new_min) + new_min)
+
 def mean_normalize(array):
+    """won't be used right now"""
     mean = 0
     max = -999999
     min = 999999
@@ -172,8 +194,8 @@ def generate_set(size, func):
     inputs = []
     outputs = []
     for i in range(0, size):
-        input = random.random() * 360
-        output = func(input)
+        input = i #random.random() * 360
+        output = func(input)[0]
         inputs.append(input)
         outputs.append(output)
     return {'inputs': inputs, 'outputs': outputs}
