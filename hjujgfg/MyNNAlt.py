@@ -11,9 +11,10 @@ def activateRelu(output):
     return max([0, output])
 
 def linearActivation(output):
-    return np.sum(output)
+    return np.array([[np.sum(output)]])
+
 def linearActivationDerivative(ouput):
-    return
+    return 0
 
 def output_derivative(value):
     return value * (1.0 - value)
@@ -48,12 +49,12 @@ class Layer:
 
     def activate(self, input, isLast):
         self.applyWeights(input)
-        self.outputs = vectorizedActivationRelu(self.zeds)
+        #self.outputs = vectorizedActivationRelu(self.zeds)
         #attempt to use linear function for last layer
-        #if not isLast:
-        #    self.outputs = vectorizedActivation(self.zeds)
-        #else:
-        #    self.outputs = linearActivation(self.zeds)
+        if not isLast:
+            self.outputs = vectorizedActivation(self.zeds)
+        else:
+            self.outputs = linearActivation(self.zeds)
 
     def calc_derivatives(self, prev_outputs):
         #print "Self deltas: \n" + str(self.deltas)
@@ -67,12 +68,18 @@ class Layer:
 
     def update_weights(self, alpha, lamb, train_size):
         #print "weights before update: " + str(self.weights)
-        self.weights = self.weights - alpha * ((1/train_size) * self.delta_W - lamb * self.weights)
+        self.weights = self.weights - alpha * (((1/train_size) * self.delta_W) - (lamb * self.weights))
         #print "weights after update: " + str(self.weights)
         self.biases = self.biases - alpha * ((1/train_size) * self.delta_b)
         self.delta_W = self.delta_W * 0
         self.delta_b = self.delta_b * 0
 
+    def pretrain(self):
+        self.deltas = None
+        self.derivative_w = None
+        self.derivative_b = None
+        self.delta_W = np.matrix(np.zeros(self.weights.shape))
+        self.delta_b = np.zeros([self.weights.shape[0], 1])
 
 
     def __str__(self):
@@ -119,7 +126,9 @@ class NN:
         for l in reversed(self.layers):
             #print "Layer #" + str(len(self.layers) - i)
             if i == 0:
-                l.deltas = np.multiply((l.outputs - res), vectorizedDerivativeRelu(l.outputs))
+                #l.deltas = np.multiply((l.outputs - res), vectorizedDerivativeRelu(l.outputs))
+                #for linear
+                l.deltas = np.multiply((l.outputs - res), np.ones([len(l.outputs), 1]))
             else:
                 l.deltas = np.multiply((prev.weights.T * prev.deltas), vectorizedDerivativeRelu(l.outputs))
             prev = l
@@ -136,6 +145,9 @@ class NN:
     def update_weights(self, alpha, lamb, train_size):
         for l in self.layers:
             l.update_weights(alpha, lamb, train_size)
+    def pretrain(self):
+        for l in self.layers:
+            l.pretrain()
 
     def __str__(self):
         res = ("START OF NN\nNeural network\n" +
@@ -147,15 +159,16 @@ class NN:
         res = res + "\n END OF NN"
         return res
 
-def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360):
+def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_plots=False):
     errors = []
     func = []
-    train_set = generate_set(train_number, calc_sin)
+    train_set = generate_set(train_number, calc_line)
     #normalization_result = mean_normalize(train_set['inputs'])
     #inputs = normalization_result['normalized']
     #outputs = train_set['outputs']
     inputs = train_set['inputs']
     outputs = train_set['outputs']
+    net.pretrain()
     for epoch in range(epochs):
         sum_error = 0
         func = []
@@ -166,7 +179,8 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360):
             #out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
 
             inp = [inputs[j]]
-            out = [scale_value(outputs[j], -1, 1, 0, 1)]
+            #out = [scale_value(outputs[j], 0, 360, 0, 1)]
+            out = [outputs[j]]
 
             func.append(out)
 
@@ -180,13 +194,14 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360):
                 break
         net.update_weights(alpha, lamb, train_number)
         print('>epoch=%d, lrate=%.3f, error=%.8f, acutally trained:%.3f' % (epoch, alpha, sum_error, train_number))
+    if show_plots:
+        plot(errors)
+        plot(func)
+        return errors
 
-    plot(errors)
-    plot(func)
-    return errors
 
 def scale_value(value, old_min, old_max, new_min, new_max):
-    return (((value - old_min) / (old_max - old_min)) * (new_max - new_min)) + new_min
+    return ( float(value - old_min) / ( float(old_max - old_min) / (new_max - new_min) ) ) + new_min
 
 def mean_normalize(array):
     """won't be used right now"""
@@ -219,9 +234,11 @@ def generate_set(size, func):
 def test(net, number = 100):
     results = []
     for i in range(number):
-        inp = [i / 360]
+        inp = [i]
         res = net.run_res(inp)
-        results.append(scale_value(res[0,0], 0, 1, -1, 1))
+        results.append(res[0,0])
+        #results.append(scale_value(res[0,0], 0, 1, 0, 360))
+        #results.append(scale_value(res, 0, 1, -1, 1))
     return results
 
 def calc_sin(input):
