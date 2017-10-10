@@ -17,7 +17,7 @@ def linearActivationDerivative(ouput):
     return 0
 
 def output_derivative(value):
-    return value * (1.0 - value)
+    return float(value) * (1.0 - value)
 
 def output_derivativeRelu(value):
     if (value > 0):
@@ -35,8 +35,8 @@ vectorizedDerivativeRelu = np.vectorize(output_derivativeRelu)
 class Layer:
     def __init__(self, neuron_number, prev_neuron_number):
         self.weights = np.matrix(np.ones([neuron_number, prev_neuron_number]))
-        self.weights = np.multiply(self.weights, np.random.random_sample([neuron_number, prev_neuron_number])) * 0.001
-        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1])) * 0.001
+        self.weights = np.multiply(self.weights, np.random.random_sample([neuron_number, prev_neuron_number]))
+        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1]))
         self.outputs = None
         self.error_terms = None
         self.derivative_w = None
@@ -52,9 +52,9 @@ class Layer:
         #self.outputs = vectorizedActivationRelu(self.zeds)
         #attempt to use linear function for last layer
         if not isLast:
-            self.outputs = vectorizedActivation(self.zeds)
+            self.outputs = vectorizedActivationRelu(self.zeds)
         else:
-            self.outputs = vectorizedActivation(self.zeds)
+            self.outputs = vectorizedActivationRelu(self.zeds)
 
     def calc_derivatives(self, prev_outputs):
         #print "Self deltas: \n" + str(self.deltas)
@@ -134,11 +134,11 @@ class NN:
             #print "layer --- " + str(i)
             #print l.weights.shape
             if i == 0:
-                l.error_terms = np.multiply((l.outputs - res), vectorizedDerivative(l.outputs))
+                l.error_terms = - np.multiply((res - l.outputs), vectorizedDerivativeRelu(l.zeds))
                 #for linear
                 #l.error_terms = np.multiply((l.outputs - res), np.ones([len(l.outputs), 1]))
             else:
-                l.error_terms = np.multiply((prev.weights.T * prev.error_terms), vectorizedDerivative(l.outputs))
+                l.error_terms = np.multiply((prev.weights.T * prev.error_terms), vectorizedDerivativeRelu(l.zeds))
             #print l.deltas
             prev = l
             i += 1
@@ -194,7 +194,7 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_p
             #inp = [val]
             #out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
 
-            inp = [inputs[j] / train_number]
+            inp = [float(inputs[j]) / train_number]
             out = [scale_value(outputs[j], -1, 1, 0, 1)]
             #out = [outputs[j]]
 
@@ -262,7 +262,7 @@ def test(net, number = 100):
     results = []
     test = generate_set(number, calc_sin)
     for i in range(number):
-        inp = [test['inputs'][i]]
+        inp = [float(test['inputs'][i]) / 360.]
         res = net.run_res(inp)
         results.append(res[0,0])
         #results.append(scale_value(res[0,0], 0, 1, 0, 360))
@@ -306,8 +306,12 @@ def build_logical_training_set(func):
 def calc_and(a, b):
     return [float(a and b)]
 
-def train_and(net, epochs=10, alpha=0.3, lamb=0.03):
-    train_set = build_logical_training_set(calc_and)
+def calc_or(a, b):
+    return [float(a or b)]
+
+
+def train_logical(net, epochs=10, alpha=0.3, lamb=0.03, func = calc_and):
+    train_set = build_logical_training_set(func)
     errors = []
     for epoch in range(epochs):
         iterator = 0
@@ -326,3 +330,12 @@ def train_and(net, epochs=10, alpha=0.3, lamb=0.03):
             break
         net.update_weights(alpha, lamb, iterator)
         print('>epoch=%d, lrate=%.3f, error=%.8f, acutally trained:%.3f' % (epoch, alpha, error, iterator))
+
+
+def test_and(net, func = calc_and):
+    set = build_logical_training_set(func)
+    for inp in set['inputs']:
+        res = net.run_res(inp)
+        print "Input: ", inp
+        print "Calculated: ", res
+        print "Expected: ", func(inp[0], inp[1])
