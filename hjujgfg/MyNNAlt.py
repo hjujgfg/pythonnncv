@@ -2,6 +2,7 @@ import numpy as np
 import random
 import math
 import matplotlib.pyplot as plt
+import plotter as myPlot
 
 
 def activate(output):
@@ -54,7 +55,7 @@ class Layer:
         if not isLast:
             self.outputs = vectorizedActivationRelu(self.zeds)
         else:
-            self.outputs = vectorizedActivationRelu(self.zeds)
+            self.outputs = linearActivation(self.zeds)
 
     def calc_derivatives(self, prev_outputs):
         #print "Self deltas: \n" + str(self.deltas)
@@ -68,9 +69,9 @@ class Layer:
 
     def update_weights(self, alpha, lamb, train_size):
         #print "weights before update: " + str(self.weights)
-        self.weights = self.weights - (alpha * (((1/train_size) * self.delta_W) + (lamb * self.weights)))
+        self.weights = self.weights - (alpha * (((1/float(train_size)) * self.delta_W) + (lamb * self.weights)))
         #print "weights after update: " + str(self.weights)
-        self.biases = self.biases - (alpha * ((1/train_size) * self.delta_b))
+        self.biases = self.biases - (alpha * ((1/float(train_size)) * self.delta_b))
         self.delta_W = self.delta_W * 0
         self.delta_b = self.delta_b * 0
 
@@ -134,9 +135,9 @@ class NN:
             #print "layer --- " + str(i)
             #print l.weights.shape
             if i == 0:
-                l.error_terms = - np.multiply((res - l.outputs), vectorizedDerivativeRelu(l.zeds))
+                #l.error_terms = - np.multiply((res - l.outputs), vectorizedDerivativeRelu(l.zeds))
                 #for linear
-                #l.error_terms = np.multiply((l.outputs - res), np.ones([len(l.outputs), 1]))
+                l.error_terms = - np.multiply(( res - l.outputs), np.ones([len(l.outputs), 1]))
             else:
                 l.error_terms = np.multiply((prev.weights.T * prev.error_terms), vectorizedDerivativeRelu(l.zeds))
             #print l.deltas
@@ -185,9 +186,15 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_p
     net.pretrain()
     #plt.plot([])
     #plt.show()
+    #myPlot.init()
+    plt.axis([0, train_number, 0, 1])
+    plt.ion()
+    plt.show()
+
     for epoch in range(epochs):
         sum_error = 0
         func = []
+        net_res = []
         for j in range(train_number):
             #rand = random.random() * 360
             #val = inputs[j]
@@ -203,7 +210,10 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_p
             net.run(inp)
             net.back(out)
             sum_error += np.sum((net.out() - out) ** 2)
-
+            net_res.append(net.out()[0,0])
+        #myPlot.plot(func)
+        #plt.cla()
+        plt.plot(net_res)
         #error = (1 / float(train_number)) * 0.5 * sum_error
         error = 0.5 * sum_error
         errors.append(error)
@@ -252,7 +262,8 @@ def generate_set(size, func):
     inputs = []
     outputs = []
     for i in range(0, size):
-        input = i + 180#random.random() * 360
+        input = i #random.random() * 360
+        #input = random.random() * 360
         output = func(input)[0]
         inputs.append(input)
         outputs.append(output)
@@ -262,7 +273,8 @@ def test(net, number = 100):
     results = []
     test = generate_set(number, calc_sin)
     for i in range(number):
-        inp = [float(test['inputs'][i]) / 360.]
+        inp = [float(test['inputs'][i]) / float(number)]
+        #print inp
         res = net.run_res(inp)
         results.append(res[0,0])
         #results.append(scale_value(res[0,0], 0, 1, 0, 360))
@@ -320,6 +332,7 @@ def train_logical(net, epochs=10, alpha=0.3, lamb=0.03, func = calc_and):
             net.run(j)
             out = train_set['outputs'][iterator]
             net.back(out)
+            print net.layers[0].weights
             iterator += 1
             sum_error += np.sum((net.out() - out) ** 2)
         error = sum_error
