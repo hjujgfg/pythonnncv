@@ -37,7 +37,7 @@ class Layer:
     def __init__(self, neuron_number, prev_neuron_number):
         self.weights = np.matrix(np.ones([neuron_number, prev_neuron_number]))
         self.weights = np.multiply(self.weights, np.random.random_sample([neuron_number, prev_neuron_number]))
-        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1]))
+        self.biases = np.multiply(np.ones([neuron_number, 1]), np.random.random_sample([neuron_number, 1])) * 0.001
         self.outputs = None
         self.error_terms = None
         self.derivative_w = None
@@ -200,8 +200,8 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_p
             #val = inputs[j]
             #inp = [val]
             #out = [(outputs[j] - normalization_result['mean']) / normalization_result['denominator']]
-
-            inp = [float(inputs[j]) / train_number]
+            scaled = float(inputs[j]) / train_number
+            inp = [scaled]
             out = [scale_value(outputs[j], -1, 1, 0, 1)]
             #out = [outputs[j]]
 
@@ -212,7 +212,7 @@ def train(net, alpha = 0.3, lamb = 0.003, epochs=300, train_number = 360, show_p
             sum_error += np.sum((net.out() - out) ** 2)
             net_res.append(net.out()[0,0])
         #myPlot.plot(func)
-        #plt.cla()
+        plt.cla()
         plt.plot(net_res)
         #error = (1 / float(train_number)) * 0.5 * sum_error
         error = 0.5 * sum_error
@@ -272,10 +272,11 @@ def generate_set(size, func):
 def test(net, number = 100):
     results = []
     test = generate_set(number, calc_sin)
-    for i in range(number):
+    for i in reversed(range(number)):
         inp = [float(test['inputs'][i]) / float(number)]
         #print inp
         res = net.run_res(inp)
+        print inp, res
         results.append(res[0,0])
         #results.append(scale_value(res[0,0], 0, 1, 0, 360))
         #results.append(scale_value(res, 0, 1, -1, 1))

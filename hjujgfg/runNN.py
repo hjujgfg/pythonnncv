@@ -1,6 +1,6 @@
 import MyNNAlt as nn
 
-net = nn.NN([1,10,1])
+net = nn.NN([1,30,1])
 
 #net.run([1.,1.])
 #print net

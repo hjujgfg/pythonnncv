@@ -1,4 +1,6 @@
 from math import exp
+from math import sin
+from math import pi
 from random import random
 from random import seed
 
@@ -158,6 +160,30 @@ network = [[{'weights': [-1.482313569067226, 1.8308790073202204, 1.0783819220487
             {'weights': [0.23244990332399884, 0.3621998343835864, 0.40289821191094327]}],
            [{'weights': [2.5001872433501404, 0.7887233511355132, -1.1026649757805829]},
             {'weights': [-2.429350576245497, 0.8357651039198697, 1.0699217181280656]}]]
+for row in dataset:
+    prediction = predict(network, row)
+    print('Expected=%d, Got=%d' % (row[-1], prediction))
+
+
+def create_sin_dataset(count):
+    dataset = []
+    step = 10
+    for i in range(count):
+        degrees = (i + step) * pi / 180
+        dataset.append([degrees, sin(degrees)])
+    return dataset
+
+dataset = create_sin_dataset(10)
+print dataset
+
+n_inputs = len(dataset[0]) - 1
+n_outputs = len(set([row[-1] for row in dataset]))
+network = initialize_network(n_inputs, 2, n_outputs)
+train_network(network, dataset, 0.5, 20, n_outputs)
+for layer in network:
+    print(layer)
+
+
 for row in dataset:
     prediction = predict(network, row)
     print('Expected=%d, Got=%d' % (row[-1], prediction))
